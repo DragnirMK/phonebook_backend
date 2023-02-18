@@ -1,6 +1,7 @@
 const express = require('express')
 var morgan = require('morgan')
 var cors = require('cors')
+const Person = require('./models/person')
 
 const app = express()
 
@@ -14,42 +15,23 @@ app.use(morgan(':method :url :status :res[content-length] - :response-time ms :b
 
 app.use(cors())
 
-var persons = [
-    { 
-      "id": 1,
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": 2,
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": 3,
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": 4,
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
-]
-
 app.get('/api/persons', (request, response) => {
-    response.send(persons)
+  Person.find({}).then(p => {
+    if (p) {
+      response.json(p)
+    } else {
+      response.status(404).end()
+    }
+  })
+  .catch(error => {
+    response.status(500).end()
+  })
 })
 
 app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
-
-    if (person) {
-        response.send(person)
-    } else {
-        response.status(404).end()
-    }
+  Person.findById(request.params.id).then(person => {
+    response.json(person)
+  })
 })
 
 app.post('/api/persons', (request, response) => {
@@ -58,36 +40,32 @@ app.post('/api/persons', (request, response) => {
     response.status(400).json({ 'error': 'name or number cannot be empty' }).end()
   }
 
-  if (persons.find(p => p.name === person.name)) {
-    response.status(400).json({ 'error': 'name already in phonebook' }).end()
-  }
+  Person.find({name: person.name}).then(p => {
+    if (p.length > 0) {
+      response.status(400).json({ 'error': 'name already in phonebook' }).end()
+    }
+  })
 
-  const maxId = persons.length === 0 ? 0 : Math.max(...persons.map(p => p.id))
+  let newPerson = new Person({
+    name: person.name,
+    number: person.number
+  })
 
-  person.id = maxId + 1
-
-  persons = persons.concat(person)
-
-  response.json(person)
+  newPerson.save().then(savedPerson => {
+    response.json(newPerson)
+  })
 })
 
 app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
-
-    if (person) {
-        persons = persons.filter(person => person.id !== id)
-        response.status(204).end()
-    } else {
-        response.status(404).end()
-    }
-    
+  Person.findByIdAndRemove(request.params.id).then(person => {
+    response.status(204).end()
+  })
 })
 
 app.get('/info', (request, response) => {
-    response.writeHead(200, { 'Content-Type': 'text/plain' })
-    response.write("Phonebook has info for " + persons.length + " people. \n")
-    response.end(Date())
+  response.writeHead(200, { 'Content-Type': 'text/plain' })
+  response.write("Phonebook has info for " + Person.length + " people. \n")
+  response.end(Date())
 })
 
 const PORT = process.env.PORT || 3001
